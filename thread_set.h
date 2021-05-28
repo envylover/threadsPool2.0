@@ -1,7 +1,10 @@
 #pragma once
+
+
+
+
 #include <tuple>
 #include <thread>
-#include <coroutine>
 #include <mutex>
 #include <functional>
 #include <optional>
@@ -9,6 +12,8 @@
 #include <queue>
 #include <optional>
 #include <map>
+
+
 
 namespace threadPool2 {
 
@@ -44,6 +49,7 @@ namespace threadPool2 {
 					if (_threadCount > _maxThreadCount)
 					{
 						--_threadCount;
+						_pThread_set->_INVALID_THREAD.push_back(std::this_thread::get_id());
 						return ;
 					}
 
@@ -90,7 +96,6 @@ namespace threadPool2 {
 		public:
 			Thread() {
 				++_threadCount;
-				//_t.detach();
 			}
 			Thread(Thread&& other):_t(std::move(other._t)){
 				if (&other == this)
@@ -134,6 +139,8 @@ namespace threadPool2 {
 				std::list<std::tuple<TaskStatus, FUN>>::push_back(std::move(_Val));
 			}
 		}                                                 _function;
+
+
 		std::map<decltype(Thread::_t.get_id()), Thread>   _thread_container;
 		
 		struct 
@@ -153,6 +160,7 @@ namespace threadPool2 {
 				swap(temp);
 				return temp;
 			}
+
 		}                                                 _INVALID_THREAD;
 		
 		std::mutex                                        _mutex;
@@ -177,7 +185,9 @@ namespace threadPool2 {
 		}
 		void remove_thread() {
 
-			for (auto i : _INVALID_THREAD)
+			auto deadThread = _INVALID_THREAD.getContainer();
+
+			for (auto i : deadThread)
 				_thread_container.erase(i);
 
 		}

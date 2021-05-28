@@ -34,15 +34,19 @@ void threadPool2::thread_set::setMaxThreadsCount(size_t maxSize)
 	assert(maxSize >= 0);
 
 
+	Thread::_maxThreadCount = maxSize;
 
 	if (Thread::_threadCount < maxSize)
+	{
+		
 		new_thread(maxSize - Thread::_threadCount);
+	}
 	else
 	{
 		remove_thread();
 	}
 
-	Thread::_maxThreadCount = maxSize;
+	Thread::_cv.notify_all();
 
 
 }
