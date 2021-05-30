@@ -1,5 +1,18 @@
+
+//--------------------------------------------------------------------
+//	thread_set.cpp
+//	05/28/2021.				created.
+//	05/30/2021.				lasted modified.
+//--------------------------------------------------------------------
+
+//--------------------------------------------------------------------
+
 #include "thread_set.h"
 
+//--------------------------------------------------------------------
+
+
+//--------------------------------------------------------------------
  std::optional<std::tuple<threadPool2::TaskStatus, threadPool2::FUN>>
 	 threadPool2::thread_set::getTask()
 {
@@ -10,7 +23,9 @@
 	}
 	return std::nullopt;
 }
+ //--------------------------------------------------------------------
 
+ //--------------------------------------------------------------------
 bool threadPool2::thread_set::wait()
 {
 	if (!_function.empty())
@@ -22,7 +37,9 @@ bool threadPool2::thread_set::wait()
 
 	return true;
 }
+//--------------------------------------------------------------------
 
+//--------------------------------------------------------------------
 void threadPool2::thread_set::new_thread(size_t thread_count)
 {
 
@@ -36,7 +53,10 @@ void threadPool2::thread_set::new_thread(size_t thread_count)
 	}
 
 }
+//--------------------------------------------------------------------
 
+
+//--------------------------------------------------------------------
 void threadPool2::thread_set::remove_thread()
 {
 
@@ -46,7 +66,10 @@ void threadPool2::thread_set::remove_thread()
 		_thread_container.erase(i);
 
 }
+//--------------------------------------------------------------------
 
+
+//--------------------------------------------------------------------
 threadPool2::thread_set::thread_set(size_t threadCount)
 	:_function()
 {
@@ -54,9 +77,10 @@ threadPool2::thread_set::thread_set(size_t threadCount)
 	Thread::_pThread_set = this;
 	new_thread(threadCount);
 }
+//--------------------------------------------------------------------
 
 
-
+//--------------------------------------------------------------------
 void threadPool2::thread_set::setMaxThreadsCount(size_t maxSize)
 {
 	assert(maxSize >= 0);
@@ -76,9 +100,11 @@ void threadPool2::thread_set::setMaxThreadsCount(size_t maxSize)
 
 	Thread::_cv.notify_all();
 
-
 }
+//--------------------------------------------------------------------
 
+
+//--------------------------------------------------------------------
 threadPool2::thread_set::~thread_set()
 {
 	setMaxThreadsCount(0);
@@ -86,32 +112,25 @@ threadPool2::thread_set::~thread_set()
 	_cv.notify_one();
 	_thread_container.clear();
 }
+//--------------------------------------------------------------------
 
-
-std::atomic_int threadPool2::thread_set::Thread::_threadCount = 0;
-
-int threadPool2::thread_set::Thread::_maxThreadCount = 0;
-
-threadPool2::thread_set::PoolStatus threadPool2::thread_set::Thread::_status = threadPool2::thread_set::PoolStatus::NO_LEADER;
-
-threadPool2::thread_set* threadPool2::thread_set::Thread::_pThread_set = nullptr;
-
-
-std::mutex threadPool2::thread_set::Thread:: _leader_mutex;
-std::mutex threadPool2::thread_set::Thread:: _follower_mutex;
-std::condition_variable threadPool2::thread_set::Thread:: _cv;
+//--------------------------------------------------------------------
 
 void threadPool2::thread_set::Thread::threadFun(void)
 {
 	while (true)
 	{
+		//--------------------------------------------------------------------
 		if (_threadCount > _maxThreadCount)
-		{
+		{//控制线程数量
 			--_threadCount;
 			_pThread_set->_INVALID_THREAD.push_back(std::this_thread::get_id());
 			return;
 		}
+		//--------------------------------------------------------------------
 
+		        /* 所有激活的线程争取成为leader，否则等待被唤醒 */
+		//--------------------------------------------------------------------
 		if (_leader_mutex.try_lock())
 		{
 			_status = PoolStatus::LEADER_EXIST;
@@ -122,6 +141,12 @@ void threadPool2::thread_set::Thread::threadFun(void)
 			_cv.wait(lck);
 			continue;
 		}
+		//--------------------------------------------------------------------
+
+
+
+		      /* leader线程等待任务分配，失败则放弃leader身份重新获取 */
+		//--------------------------------------------------------------------
 		if (_pThread_set->wait())
 		{
 			auto task = _pThread_set->getTask();
@@ -150,22 +175,38 @@ void threadPool2::thread_set::Thread::threadFun(void)
 
 	}
 }
+//--------------------------------------------------------------------
 
+
+//--------------------------------------------------------------------
 threadPool2::thread_set::Thread::Thread() :_t(&threadFun) {
 	++_threadCount;
 }
+//--------------------------------------------------------------------
 
-threadPool2::thread_set::Thread::Thread(Thread&& other) : _t(std::move(other._t)) {
+
+//--------------------------------------------------------------------
+threadPool2::thread_set::Thread::Thread(Thread&& other) 
+	: _t(std::move(other._t)) {
 	if (&other == this)
 		return;
 }
+//--------------------------------------------------------------------
 
+
+
+//--------------------------------------------------------------------
 auto threadPool2::thread_set::Thread::get_id()->std::jthread::id
 {
 	return _t.get_id();
 }
+//--------------------------------------------------------------------
 
-auto threadPool2::thread_set::FUNC::pop_back() -> std::optional<std::tuple<TaskStatus, FUN>>
+
+
+//--------------------------------------------------------------------
+auto threadPool2::thread_set::FUNC::pop_back()
+-> std::optional<std::tuple<TaskStatus, FUN>>
 {
 	std::lock_guard lck(_mutex);
 	if (!empty())
@@ -176,15 +217,46 @@ auto threadPool2::thread_set::FUNC::pop_back() -> std::optional<std::tuple<TaskS
 	}
 	return std::nullopt;
 }
+//--------------------------------------------------------------------
 
-void threadPool2::thread_set::FUNC::push_back(const std::tuple<TaskStatus, FUN>& _Val)
+
+
+//--------------------------------------------------------------------
+void 
+threadPool2::thread_set::FUNC::
+push_back(const std::tuple<TaskStatus, FUN>& _Val)
 {
 	std::lock_guard lck(_mutex);
 	std::list<std::tuple<TaskStatus, FUN>>::push_back(_Val);
 }
+//--------------------------------------------------------------------
 
-void threadPool2::thread_set::FUNC::push_back(std::tuple<TaskStatus, FUN>&& _Val)
+
+//--------------------------------------------------------------------
+void 
+threadPool2::thread_set::FUNC::
+push_back(std::tuple<TaskStatus, FUN>&& _Val)
 {
 	std::lock_guard lck(_mutex);
 	std::list<std::tuple<TaskStatus, FUN>>::push_back(std::move(_Val));
 }
+//--------------------------------------------------------------------
+
+//--------------------------------------------------------------------
+
+std::atomic_int threadPool2::thread_set::Thread::_threadCount = 0;
+
+int threadPool2::thread_set::Thread::_maxThreadCount = 0;
+
+threadPool2::thread_set::PoolStatus threadPool2::thread_set::Thread::_status = threadPool2::thread_set::PoolStatus::NO_LEADER;
+
+threadPool2::thread_set* threadPool2::thread_set::Thread::_pThread_set = nullptr;
+
+
+std::mutex threadPool2::thread_set::Thread:: _leader_mutex;
+std::mutex threadPool2::thread_set::Thread:: _follower_mutex;
+std::condition_variable threadPool2::thread_set::Thread:: _cv;
+//--------------------------------------------------------------------
+
+
+
