@@ -18,6 +18,9 @@
     <ClInclude Include="thread_set.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="handle_event.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="thread_set.cpp">

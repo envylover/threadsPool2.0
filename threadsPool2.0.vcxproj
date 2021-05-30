@@ -140,6 +140,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="handle_event.h" />
     <ClInclude Include="thread_set.h" />
   </ItemGroup>
   <ItemGroup>

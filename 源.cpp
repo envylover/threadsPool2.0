@@ -15,21 +15,21 @@ void fun(int j)
 
 int main()
 {
-	//{
-	//	threadPool2::thread_set tm(3000);
-	//	for (int j = 0; j < 100000; j++)
-	//		tm.addTask(threadPool2::TaskStatus::FOLLOWER,std::bind(fun, j));
-	//	////std::this_thread::sleep_for(std::chrono::milliseconds(520));
-	//	////tm.setMaxThreadsCount(6);
-	//	////std::this_thread::sleep_for(std::chrono::milliseconds(10000));
-	//	////tm.setMaxThreadsCount(15);
-	//	std::this_thread::sleep_for(std::chrono::milliseconds(100000));
-	//	//std::this_thread::sleep_for(std::chrono::milliseconds(100000));
-	//	int a = 0;
-	//}
+	{
+		threadPool2::thread_set tm(3000);
+		for (int j = 0; j < 100000; j++)
+			tm.addTask(threadPool2::handle_event<threadPool2::FK_EVENT::FK_READ>(std::bind(fun, j)));
+		////std::this_thread::sleep_for(std::chrono::milliseconds(520));
+		////tm.setMaxThreadsCount(6);
+		////std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+		////tm.setMaxThreadsCount(15);
+		std::this_thread::sleep_for(std::chrono::milliseconds(100000));
+		//std::this_thread::sleep_for(std::chrono::milliseconds(100000));
+		int a = 0;
+	}
 
 
-	threadPool2::thread_set tm(3000);
+	/*threadPool2::thread_set tm(3000);
 
 	std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
@@ -51,7 +51,7 @@ int main()
 
 	tm.setMaxThreadsCount(15);
 
-	std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	std::this_thread::sleep_for(std::chrono::milliseconds(100));*/
 
 	return 0;
 }

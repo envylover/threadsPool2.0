@@ -23,11 +23,39 @@ bool threadPool2::thread_set::wait()
 	return true;
 }
 
-void threadPool2::thread_set::addTask(TaskStatus status, FUN task)
+void threadPool2::thread_set::new_thread(size_t thread_count)
 {
-	_function.push_back({ status,task });
-	_cv.notify_one();
+
+	assert(thread_count >= 0);
+
+	for (int i = 0; i < thread_count; ++i)
+	{
+		Thread t{};
+		auto id = t.get_id();
+		_thread_container.emplace(std::make_pair(id, std::move(t)));
+	}
+
 }
+
+void threadPool2::thread_set::remove_thread()
+{
+
+	auto deadThread = _INVALID_THREAD.getContainer();
+
+	for (auto i : deadThread)
+		_thread_container.erase(i);
+
+}
+
+threadPool2::thread_set::thread_set(size_t threadCount)
+	:_function()
+{
+	Thread::_maxThreadCount = threadCount;
+	Thread::_pThread_set = this;
+	new_thread(threadCount);
+}
+
+
 
 void threadPool2::thread_set::setMaxThreadsCount(size_t maxSize)
 {
@@ -51,6 +79,14 @@ void threadPool2::thread_set::setMaxThreadsCount(size_t maxSize)
 
 }
 
+threadPool2::thread_set::~thread_set()
+{
+	setMaxThreadsCount(0);
+	Thread::_cv.notify_all();
+	_cv.notify_one();
+	_thread_container.clear();
+}
+
 
 std::atomic_int threadPool2::thread_set::Thread::_threadCount = 0;
 
@@ -64,3 +100,91 @@ threadPool2::thread_set* threadPool2::thread_set::Thread::_pThread_set = nullptr
 std::mutex threadPool2::thread_set::Thread:: _leader_mutex;
 std::mutex threadPool2::thread_set::Thread:: _follower_mutex;
 std::condition_variable threadPool2::thread_set::Thread:: _cv;
+
+void threadPool2::thread_set::Thread::threadFun(void)
+{
+	while (true)
+	{
+		if (_threadCount > _maxThreadCount)
+		{
+			--_threadCount;
+			_pThread_set->_INVALID_THREAD.push_back(std::this_thread::get_id());
+			return;
+		}
+
+		if (_leader_mutex.try_lock())
+		{
+			_status = PoolStatus::LEADER_EXIST;
+		}
+		else
+		{
+			std::unique_lock lck(_follower_mutex);
+			_cv.wait(lck);
+			continue;
+		}
+		if (_pThread_set->wait())
+		{
+			auto task = _pThread_set->getTask();
+			if (!task)
+			{
+				_status = PoolStatus::NO_LEADER;
+				_leader_mutex.unlock();
+				continue;
+			}
+			auto [status, _task] = task.value();
+			if (status == TaskStatus::FOLLOWER)
+			{
+				_status = PoolStatus::NO_LEADER;
+				_leader_mutex.unlock();
+				_cv.notify_one();
+			}
+			else
+			{
+				_leader_mutex.unlock();
+			}
+			if (_task)
+				_task.value()();
+		}
+		else
+			_leader_mutex.unlock();
+
+	}
+}
+
+threadPool2::thread_set::Thread::Thread() :_t(&threadFun) {
+	++_threadCount;
+}
+
+threadPool2::thread_set::Thread::Thread(Thread&& other) : _t(std::move(other._t)) {
+	if (&other == this)
+		return;
+}
+
+auto threadPool2::thread_set::Thread::get_id()->std::jthread::id
+{
+	return _t.get_id();
+}
+
+auto threadPool2::thread_set::FUNC::pop_back() -> std::optional<std::tuple<TaskStatus, FUN>>
+{
+	std::lock_guard lck(_mutex);
+	if (!empty())
+	{
+		auto temp = front();
+		pop_front();
+		return temp;
+	}
+	return std::nullopt;
+}
+
+void threadPool2::thread_set::FUNC::push_back(const std::tuple<TaskStatus, FUN>& _Val)
+{
+	std::lock_guard lck(_mutex);
+	std::list<std::tuple<TaskStatus, FUN>>::push_back(_Val);
+}
+
+void threadPool2::thread_set::FUNC::push_back(std::tuple<TaskStatus, FUN>&& _Val)
+{
+	std::lock_guard lck(_mutex);
+	std::list<std::tuple<TaskStatus, FUN>>::push_back(std::move(_Val));
+}

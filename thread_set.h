@@ -1,7 +1,7 @@
 #pragma once
 
 
-
+#include "handle_event.h"
 
 #include <tuple>
 #include <thread>
@@ -12,6 +12,9 @@
 #include <queue>
 #include <optional>
 #include <map>
+#include <concepts>
+
+
 
 
 
@@ -22,7 +25,7 @@ namespace threadPool2 {
 		LEADER,
 		FOLLOWER
 	};
-	using FUN = std::optional<std::function<void(void)>>;
+	using FUN = std::optional<HANDLE>;
 	class thread_set
 	{
 	public:
@@ -43,72 +46,25 @@ namespace threadPool2 {
 			static std::condition_variable       _cv;
 
 
-			std::jthread                         _t{ [this](void)->void {
-				while (true)
-				{
-					if (_threadCount > _maxThreadCount)
-					{
-						--_threadCount;
-						_pThread_set->_INVALID_THREAD.push_back(std::this_thread::get_id());
-						return ;
-					}
-
-					if (_leader_mutex.try_lock())
-					{
-						_status = PoolStatus::LEADER_EXIST;
-					}
-					else
-					{
-						std::unique_lock lck(_follower_mutex);
-						_cv.wait(lck);
-						continue;
-					}
-					if (_pThread_set->wait())
-					{
-						auto task = _pThread_set->getTask();
-						if (!task)
-						{
-							_status = PoolStatus::NO_LEADER;
-							_leader_mutex.unlock();
-							continue;
-						}
-						auto [status, _task] = task.value();
-						if (status == TaskStatus::FOLLOWER)
-						{
-							_status = PoolStatus::NO_LEADER;
-							_leader_mutex.unlock();
-							_cv.notify_one();
-						}
-						else
-						{
-							_leader_mutex.unlock();
-						}
-						if (_task)
-							_task.value()();
-					}
-					else
-						_leader_mutex.unlock();
-					
-				}
-			} };
+			std::jthread                         _t{};
 			friend class thread_set;
 
+		private:
+
+			static void threadFun(void);
+
+
 		public:
-			Thread() {
-				++_threadCount;
-			}
-			Thread(Thread&& other):_t(std::move(other._t)){
-				if (&other == this)
-					return;
-			}
+			Thread();
+			Thread(Thread&&);
 			Thread(const Thread&) = delete;
 			Thread& operator = (const Thread&) = delete;
 			Thread& operator = (Thread&& other) = delete;
 			~Thread() {
 			}
-			auto get_id() {
-				return _t.get_id();
-			}
+			auto get_id()->std::jthread::id;
+
+
 		};
 
 		struct FUNC
@@ -117,27 +73,11 @@ namespace threadPool2 {
 			FUNC() {}
 			std::mutex  _mutex;
 			auto pop_back()
-			->std::optional<std::tuple<TaskStatus, FUN>>
-			{
-				std::lock_guard lck(_mutex);
-				if (!empty())
-				{
-					auto temp = front();
-					pop_front();
-					return temp;
-				}
-				return std::nullopt;
-			}
-			void push_back(const std::tuple<TaskStatus, FUN>& _Val)
-			{
-				std::lock_guard lck(_mutex);
-				std::list<std::tuple<TaskStatus, FUN>>::push_back(_Val);
-			}
-			void push_back(std::tuple<TaskStatus, FUN>&& _Val)
-			{
-				std::lock_guard lck(_mutex);
-				std::list<std::tuple<TaskStatus, FUN>>::push_back(std::move(_Val));
-			}
+				->std::optional<std::tuple<TaskStatus, FUN>>;
+
+			void push_back(const std::tuple<TaskStatus, FUN>& _Val);
+
+			void push_back(std::tuple<TaskStatus, FUN>&& _Val);
 		}                                                 _function;
 
 
@@ -169,47 +109,37 @@ namespace threadPool2 {
 
 
 	private:
+
+
+
+
 		std::optional<std::tuple<TaskStatus, FUN>> getTask();
 		bool wait();
-		void new_thread(size_t thread_count) {
-
-			assert(thread_count >= 0);
-
-			for (int i = 0; i < thread_count; ++i)
-			{
-				Thread t{};
-				auto id = t.get_id();
-				_thread_container.emplace(std::make_pair(id,std::move(t)));
-			}
-
-		}
-		void remove_thread() {
-
-			auto deadThread = _INVALID_THREAD.getContainer();
-
-			for (auto i : deadThread)
-				_thread_container.erase(i);
-
-		}
+		void new_thread(size_t thread_count);
+		void remove_thread();
 	public:
-		thread_set(size_t threadCount):_function(){
-			Thread::_maxThreadCount = threadCount;
-			Thread::_pThread_set = this;
-			new_thread(threadCount);
+		thread_set(size_t threadCount = std::thread::hardware_concurrency() * 2);
+
+
+
+
+		template<FK_EVENT _Ty>
+		void addTask(handle_event<_Ty>&& task) {
+			if constexpr (isLeaderWork<handle_event<_Ty>>)
+				_function.push_back({ TaskStatus::LEADER,std::forward<handle_event<_Ty>>(task) });
+			else
+				_function.push_back({ TaskStatus::FOLLOWER,std::forward<handle_event<_Ty>>(task) });
+
+			_cv.notify_one();
 		}
-		void addTask(TaskStatus status, FUN task);
+
+
 		void setMaxThreadsCount(size_t size);
 
-		~thread_set()
-		{
-
-			setMaxThreadsCount(0);
-			Thread::_cv.notify_all();
-			_cv.notify_one();
-			_thread_container.clear();
-		}
+		~thread_set();
 	}; 
 
 
 }
+
 
