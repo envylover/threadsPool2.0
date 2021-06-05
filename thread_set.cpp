@@ -252,11 +252,40 @@ threadPool2::thread_set::PoolStatus threadPool2::thread_set::Thread::_status = t
 
 threadPool2::thread_set* threadPool2::thread_set::Thread::_pThread_set = nullptr;
 
+std::mutex threadPool2::thread_set::_singletonMx;
 
 std::mutex threadPool2::thread_set::Thread:: _leader_mutex;
 std::mutex threadPool2::thread_set::Thread:: _follower_mutex;
 std::condition_variable threadPool2::thread_set::Thread:: _cv;
+
+
+std::shared_ptr<threadPool2::thread_set> _hInstance{nullptr};
+
+std::function<void(threadPool2::thread_set* p)>threadPool2::thread_set::deleter = [](thread_set* p)->void {
+	if (p)
+		delete p;
+	p = nullptr;
+};
+
+
 //--------------------------------------------------------------------
+void 
+threadPool2::destoryThreadsPoolInstance()
+{
+	std::lock_guard<std::mutex> lck(thread_set::_singletonMx);
+	if (_hInstance)
+		_hInstance.reset();
+}
 
-
-
+//--------------------------------------------------------------------
+std::weak_ptr<threadPool2::thread_set>
+threadPool2::getThreadsPoolInstance(unsigned int threadsCount)
+{
+	std::lock_guard<std::mutex> lck(thread_set::_singletonMx);
+	if (_hInstance)
+		return _hInstance;
+	std::shared_ptr<thread_set> ptemp(new thread_set(threadsCount), thread_set::deleter);
+	_hInstance.swap(ptemp);
+	return _hInstance;
+}
+//--------------------------------------------------------------------

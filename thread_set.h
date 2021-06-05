@@ -24,6 +24,7 @@
 #include <queue>
 #include <optional>
 #include <map>
+#include <memory>
 
 //--------------------------------------------------------------------
 
@@ -50,7 +51,7 @@ namespace threadPool2 {
 //--------------------------------------------------------------------
 
 
-	             /*  线程集合类，负责线程对象的管理工作,内部有线程对象内部类 */
+	    /*  线程集合类，负责线程对象的管理工作,内部有线程对象内部类 */
 //--------------------------------------------------------------------
 	class thread_set
 	{
@@ -142,6 +143,8 @@ namespace threadPool2 {
 		std::mutex                                        _mutex;
 		std::condition_variable                           _cv;
 		
+		static std::mutex                                 _singletonMx;
+
 	private:
 
 
@@ -150,10 +153,12 @@ namespace threadPool2 {
 		bool wait();//等待事件产生
 		void new_thread(size_t thread_count);//产生新的线程
 		void remove_thread();//移除无用的线程对象
-	public:
+
+	private:
 		thread_set(size_t threadCount = std::thread::hardware_concurrency() * 2);
+		~thread_set();
 
-
+	public:
 
 
 		template<FK_EVENT _Ty>
@@ -169,11 +174,15 @@ namespace threadPool2 {
 
 
 		void setMaxThreadsCount(size_t size);//设置线程池最大数量
+	private:
+		static std::unique_ptr<thread_set> _hInstance;
 
-		~thread_set();
+		static std::function<void(thread_set* p)> deleter;
+		friend std::weak_ptr<thread_set> getThreadsPoolInstance(unsigned int threadsCount);
+		friend void destoryThreadsPoolInstance();
 	}; 
-
-
+	std::weak_ptr<thread_set> getThreadsPoolInstance(unsigned int threadsCount = std::thread::hardware_concurrency());
+	void destoryThreadsPoolInstance();
 }
 
 
