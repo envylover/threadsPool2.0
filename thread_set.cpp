@@ -281,6 +281,8 @@ threadPool2::destoryThreadsPoolInstance()
 std::weak_ptr<threadPool2::thread_set>
 threadPool2::getThreadsPoolInstance(unsigned int threadsCount)
 {
+	if (_hInstance)
+		return _hInstance;
 	std::lock_guard<std::mutex> lck(thread_set::_singletonMx);
 	if (_hInstance)
 		return _hInstance;
